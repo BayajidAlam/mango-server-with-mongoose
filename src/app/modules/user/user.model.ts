@@ -1,9 +1,9 @@
 import { HydratedDocument, model, Schema } from "mongoose";
-import { IUser } from "./user.interface";
+import { IUser, IUserMethods, UserModel } from "./user.interface";
 import config from "../../../config";
 import bcrypt from "bcrypt";
 
-const userSchema = new Schema<IUser>({
+const userSchema = new Schema<IUser, UserModel, IUserMethods>({
   name: {
     type: String,
     required: [true, "Please provide your name"],
@@ -45,28 +45,33 @@ const userSchema = new Schema<IUser>({
   },
 });
 
+// Pre Hook
 userSchema.pre("save", async function (next) {
   const user = this as HydratedDocument<IUser>;
-
   if (user.isModified("password")) {
-    user.password = await bcrypt.hash(
-      user.password,
-      Number(config.bcrypt_salt_rounds)
-    );
+    user.password = await bcrypt.hash(user.password, Number(config.bcrypt_salt_rounds));
   }
-
   next();
 });
 
-
-//Remove password from response
-userSchema.set('toJSON', {
+// Remove password from JSON response
+userSchema.set("toJSON", {
   transform: function (doc, ret) {
     delete ret.password;
     return ret;
   },
 });
 
+// Static method
+userSchema.statics.getActiveUsers = async function () {
+  return this.find({ userStatus: "active" });
+};
 
-const User = model<IUser>("User", userSchema);
+// Instance method
+userSchema.methods.isSeller = function () {
+  return this.role === "seller";
+};
+
+// Final model export
+const User = model<IUser, UserModel>("User", userSchema);
 export default User;
